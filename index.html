@@ -67,6 +67,11 @@ button { cursor: pointer }
 
 header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px }
 .top .sub { color: var(--muted); font-size: 0.9rem }
+.brandwrap { display: flex; align-items: center; gap: 14px; min-width: 0 }
+.brand { height: 64px; width: auto; flex: none }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .brand { filter: invert(1) } }
+:root[data-theme="dark"] .brand { filter: invert(1) }
+@media (max-width: 460px) { .brand { height: 52px } }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 600 }
 .btn:hover { border-color: var(--ink) }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
@@ -213,9 +218,12 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
 
 <div class="wrap">
   <header class="top">
-    <div>
-      <div class="label">Phoenix sourdough · home bakery</div>
-      <h1>Bake Book</h1>
+    <div class="brandwrap">
+      <img class="brand" src="logo.png" alt="PicnicSunday Bakes">
+      <div>
+        <div class="label">PicnicSunday Bakes</div>
+        <h1>Bake Book</h1>
+      </div>
     </div>
     <button class="btn primary" id="newOrderBtn" type="button">+ New order</button>
   </header>
@@ -305,6 +313,10 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
       <div class="field"><label class="label" for="capIn">Boules per bake day</label><input id="capIn" type="number" min="1" step="1"></div>
       <div class="field"><label class="label" for="feeIn">Default delivery fee ($)</label><input id="feeIn" type="number" min="0" step="0.5"></div>
     </div>
+    <div class="row2">
+      <div class="field"><label class="label" for="paynowIn">PayNow number</label><input id="paynowIn" inputmode="tel" placeholder="9368 8616"></div>
+      <div class="field"><label class="label" for="payeeIn">Name customers see on PayNow</label><input id="payeeIn" placeholder="Optional"></div>
+    </div>
     <div class="recipe-grid" id="recipeGrid"></div>
     <div class="foot"><span class="note">Remember to tap Save after adding days off. Grams are per boule. Starter feed is the flour you feed Phoenix per boule (your 1:2:2 feeds use ~40g).</span><button class="btn primary" id="saveRecipe" type="button">Save recipe &amp; prices</button></div>
     <div class="panel" style="background:var(--bg)">
@@ -361,7 +373,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     <div class="total"><span class="label">Total</span><span class="num" id="oTotal">$0</span></div>
     <div class="note" id="oCost" style="text-align:right;margin-top:-8px"></div>
     <div class="foot">
-      <div><button class="btn danger" type="button" id="delOrder" hidden>Delete</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn danger" type="button" id="delOrder" hidden>Delete</button><a class="btn" id="waBtn" href="#" target="_blank" rel="noopener" hidden>WhatsApp payment reminder</a></div>
       <div class="r"><button class="btn" type="button" id="cancelSheet">Cancel</button><button class="btn primary" type="submit" id="saveOrder">Save order</button></div>
     </div>
   </form>
@@ -395,7 +407,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
 
 <div class="overlay" id="loginSheet" hidden>
   <form class="sheet" id="loginForm" autocomplete="on">
-    <div><div class="label">Phoenix sourdough</div><h2>Sign in to Bake Book</h2></div>
+    <div style="display:flex;align-items:center;gap:12px"><img class="brand" style="height:48px" src="logo.png" alt=""><div><div class="label">PicnicSunday Bakes</div><h2>Sign in to Bake Book</h2></div></div>
     <div class="field"><label class="label" for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" required></div>
     <div class="field"><label class="label" for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password" required></div>
     <div id="loginMsg" class="warnbox" hidden></div>
@@ -410,6 +422,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
 (function () {
   const DEFAULT_CONFIG = {
     capacity: 2,
+    paynow: "93688616", payeeName: "",
     schedule: { feedStart: "07:30", feedEnd: "13:00", mixStart: "13:00", mixEnd: "20:00", bakeStart: "07:00", preheat: 60, perBake: 28, cool: 60 },
     flavours: [
       { id: "plain", name: "Plain", price: 12 },
@@ -680,6 +693,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
 
   function renderRecipe() {
     $("#capIn").value = cfg.capacity; $("#feeIn").value = Number(cfg.deliveryFee) || 0;
+    $("#paynowIn").value = cfg.paynow || ""; $("#payeeIn").value = cfg.payeeName || "";
     const itemName = (id) => inv[id]?.name || id;
     let h = `<div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Every boule</h3>${cfg.base.map((r, i) => `<label class="gline"><span>${esc(r.label)}</span><input class="inp" type="number" min="0" step="1" data-base="${i}" value="${r.g}" aria-label="${esc(r.label)} grams"></label>`).join("")}<span class="note">Plus 75g starter and 245g water (not tracked as stock).</span></div>`;
     h += `<div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Flavours &amp; prices</h3>${cfg.flavours.map((f, fi) => `
@@ -761,8 +775,30 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
         ${late ? `<div style="color:var(--bad);margin-top:4px">${sheetMode === "delivery" ? "Delivery" : "Pickup"} at ${esc(t)} is before the bread has cooled. Suggest ${fmt(p.ready)} or later.</div>` : ""}
         ${clash ? `<div style="color:var(--bad);margin-top:4px">This bake overlaps mixing for the next day's bake. Move the oven-on time earlier or shift an order.</div>` : ""}`;
     } else pb.hidden = true;
+    updateReminder();
   }
   let sheetMode = "pickup";
+  function niceTime(t) { if (!t) return ""; const [h, m] = t.split(":").map(Number); return (h % 12 || 12) + (m ? ":" + String(m).padStart(2, "0") : "") + (h < 12 ? "am" : "pm"); }
+  function updateReminder() {
+    const a = $("#waBtn"), date = $("#oDate").value;
+    if (sheetPay === "paid" || sheetStat === "cancelled" || !date || !$("#oName").value.trim()) { a.hidden = true; return; }
+    const lines = readLines(), fee = sheetMode === "delivery" ? Number($("#oFee").value) || 0 : 0;
+    const tot = lines.reduce((s, l) => s + l.qty * flav(l.flavour).price, 0) + fee;
+    const items = lines.map(l => `${l.qty} ${flav(l.flavour).name}`).join(" and ");
+    const n = lines.reduce((s, l) => s + l.qty, 0);
+    const first = $("#oName").value.trim().replace(/\s*\(.*\)\s*$/, "").split(/\s+/)[0];
+    const pn = String(cfg.paynow || "").replace(/\D/g, ""), pnShow = pn.length === 8 ? pn.slice(0, 4) + " " + pn.slice(4) : pn;
+    const t = niceTime($("#oTime").value), when = nice(date, { weekday: "short", day: "numeric", month: "short" });
+    const msg = `Hi ${first}! Thanks for your order of ${items} sourdough boule${n > 1 ? "s" : ""} for ${sheetMode === "delivery" ? "delivery" : "pickup"} on ${when}${t ? " at " + t : ""} \u{1F35E}\n`
+      + (sheetMode === "delivery" && $("#oAddr").value.trim() ? `Delivering to: ${$("#oAddr").value.trim()}\n` : "")
+      + `\nTotal: ${money(tot)}${fee ? ` (incl. ${money(fee)} delivery)` : ""}\n`
+      + `Please PayNow to ${pnShow || "[your PayNow number]"}${cfg.payeeName ? " (" + cfg.payeeName + ")" : ""} and send me a screenshot once done. Thank you!`;
+    let ph = String($("#oContact").value || "").replace(/\D/g, "");
+    if (/^[3689]\d{7}$/.test(ph)) ph = "65" + ph;
+    a.href = (ph.length >= 10 ? "https://wa.me/" + ph : "https://wa.me/") + "?text=" + encodeURIComponent(msg);
+    a.title = ph.length >= 10 ? "Opens WhatsApp to " + $("#oContact").value : "No phone number: WhatsApp will ask who to send to";
+    a.hidden = false;
+  }
   function setMode(m) {
     sheetMode = m === "delivery" ? "delivery" : "pickup";
     setSeg("modeSeg", sheetMode);
@@ -876,6 +912,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     next.capacity = Math.max(1, parseInt($("#capIn").value) || 2);
     next.daysOff = pendingOff.map(x => ({ ...x }));
     next.deliveryFee = Math.max(0, Number($("#feeIn").value) || 0);
+    next.paynow = $("#paynowIn").value.trim(); next.payeeName = $("#payeeIn").value.trim();
     document.querySelectorAll("[data-base]").forEach(i => next.base[+i.dataset.base].g = Number(i.value) || 0);
     document.querySelectorAll("[data-price]").forEach(i => next.flavours[+i.dataset.price].price = Number(i.value) || 0);
     document.querySelectorAll("[data-inc]").forEach(i => { const [f, r] = i.dataset.inc.split(":"); next.inclusions[f][+r].g = Number(i.value) || 0; });
@@ -916,6 +953,8 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
   $("#oDate").oninput = () => { if (!bakeTouched) $("#oBake").value = defaultBake($("#oDate").value); updateSheet(); };
   $("#oBake").oninput = () => { bakeTouched = true; updateSheet(); };
   $("#oTime").oninput = updateSheet; $("#oFee").oninput = updateSheet;
+  ["#oName", "#oContact", "#oAddr"].forEach(s => $(s).addEventListener("input", updateReminder));
+  $("#paySeg").addEventListener("click", () => setTimeout(updateReminder, 0));
   $("#modeSeg").onclick = e => { const b = e.target.closest("button"); if (b) { setMode(b.dataset.v); updateSheet(); } };
   $("#paySeg").onclick = e => { const b = e.target.closest("button"); if (b) { sheetPay = b.dataset.v; setSeg("paySeg", sheetPay); } };
   $("#statSeg").onclick = e => { const b = e.target.closest("button"); if (b) { sheetStat = b.dataset.v; setSeg("statSeg", sheetStat); updateSheet(); } };
