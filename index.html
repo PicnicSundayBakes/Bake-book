@@ -313,7 +313,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" type="button" id="exportBtn">Save a backup file</button>
         <label class="btn" for="importFile" style="cursor:pointer">Import a backup file</label>
-        <input id="importFile" type="file" accept=".json,application/json" hidden>
+        <input id="importFile" type="file" hidden>
         <button class="btn danger" type="button" id="signOut">Sign out</button>
       </div>
       <div id="importMsg" class="infobox" hidden></div>
@@ -1024,7 +1024,16 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     const btn = $("#loginBtn"), msg = $("#loginMsg"); btn.disabled = true; msg.hidden = true;
     const { data, error } = await sb.auth.signInWithPassword({ email: $("#lEmail").value.trim(), password: $("#lPass").value });
     btn.disabled = false;
-    if (error) { msg.hidden = false; msg.textContent = "That email and password didn't match. Use the account you created in Supabase (README step 3)."; return; }
+    if (error) {
+      const m = String(error.message || "");
+      msg.hidden = false;
+      msg.textContent = /not confirmed/i.test(m) ? "This login isn't confirmed yet. In Supabase → Authentication → Users, delete it and add it again with Auto Confirm User ticked, or tap the link in the confirmation email."
+        : /invalid login/i.test(m) ? "Wrong email or password. Retype the password yourself (no autofill), exactly as you set it in Supabase → Authentication → Users."
+        : /api key|apikey|jwt/i.test(m) ? "The key in config.js isn't accepted. Copy the publishable (or anon public) key again from Supabase → Settings → API Keys."
+        : /fetch|network|load failed/i.test(m) ? "Can't reach Supabase. Check your internet, and that the Project URL in config.js is right."
+        : "Supabase said: " + m;
+      return;
+    }
     begin(data.user);
   };
   $("#signOut").onclick = async () => { if (!sb) return; await sb.auth.signOut(); try { Object.keys(localStorage).filter(k => k.startsWith("bb-cache-")).forEach(k => localStorage.removeItem(k)); } catch {} location.reload(); };
