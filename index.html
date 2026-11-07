@@ -136,6 +136,8 @@ nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: 
 .chips { display: flex; flex-direction: column; gap: 3px }
 .del { font-size: 0.58rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 3px; flex: none }
 @media (max-width: 640px) { .chip .del { display: none } }
+.day.away { background: repeating-linear-gradient(135deg, var(--sunk) 0 7px, var(--surface) 7px 14px) }
+.awayl { font-size: 0.62rem; font-weight: 700; color: var(--bad); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .ph { font-size: 0.62rem; font-weight: 700; color: var(--accent); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .blks { display: flex; flex-direction: column; gap: 2px }
 .blk { font-size: 0.68rem; line-height: 1.3; padding: 1px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--muted); background: var(--sunk); color: var(--ink) }
@@ -266,6 +268,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     <div class="cal-head">
       <h2 id="calTitle">Month</h2>
       <div class="cal-nav">
+        <button class="btn small" id="blockBtn" type="button">Block dates</button>
         <button class="btn small" id="prevM" type="button" aria-label="Previous month">‹</button>
         <button class="btn small" id="todayM" type="button">Today</button>
         <button class="btn small" id="nextM" type="button" aria-label="Next month">›</button>
@@ -416,6 +419,21 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
   </form>
 </div>
 
+<div class="overlay" id="blockSheet" hidden>
+  <form class="sheet" id="blockForm" autocomplete="off">
+    <div class="hd"><h2>Block dates</h2><button class="iconbtn" type="button" id="closeBlock" aria-label="Close">×</button></div>
+    <span class="note">For trips or busy spells. Blocked days can't be used for starter feeding, mixing or baking, so capacity drops around them.</span>
+    <div class="row2">
+      <div class="field"><label class="label" for="bStart">From</label><input id="bStart" type="date" required></div>
+      <div class="field"><label class="label" for="bEnd">To</label><input id="bEnd" type="date"></div>
+    </div>
+    <div class="field"><label class="label" for="bReason">Reason</label><input id="bReason" placeholder="Travelling"></div>
+    <button class="btn primary" type="submit">Block these dates</button>
+    <div class="label">Blocked dates</div>
+    <div id="blockList" style="display:flex;flex-direction:column;gap:6px"></div>
+  </form>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -470,13 +488,18 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     "2027-08-09": "National Day", "2027-10-28": "Deepavali", "2027-12-25": "Christmas Day"
   };
   const offName = (s) => SG_PH[s] || ((cfg.daysOff || []).find(d => d.date === s) || {}).name || "";
+  const blockedOn = (s) => (cfg.blocked || []).find(r => s >= r.start && s <= (r.end || r.start));
+  const isBlocked = (s) => !!blockedOn(s);
   const isOff = (s) => { const g = parse(s).getDay(); return g === 0 || g === 6 || !!offName(s); };
   function blockOf(s) { // a run of days off (weekend, long weekend, leave): first day preps, every later day is a bake day
     if (!s || !isOff(s)) return null;
     let a = parse(s), b = parse(s);
     while (isOff(ymd(addDays(a, -1)))) a = addDays(a, -1);
     while (isOff(ymd(addDays(b, 1)))) b = addDays(b, 1);
-    const days = Math.round((b - a) / 864e5) + 1, bakeDays = Math.max(1, days - 1);
+    const days = Math.round((b - a) / 864e5) + 1;
+    let bakeDays = 0;
+    if (days === 1) bakeDays = isBlocked(ymd(a)) || isBlocked(ymd(addDays(a, -1))) ? 0 : 1;
+    else for (let x = addDays(a, 1); x <= b; x = addDays(x, 1)) if (!isBlocked(ymd(x)) && !isBlocked(ymd(addDays(x, -1)))) bakeDays++;
     return { key: ymd(a), start: ymd(a), end: ymd(b), days, bakeDays, cap: cfg.capacity * bakeDays };
   }
   function defaultBake(pick) { // bake on pickup day; a workday pickup right after a day off bakes on that day off
@@ -486,7 +509,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
   }
   const bakeOf = (o) => o.bakeDate || defaultBake(o.date);
   const capKey = (bake) => (blockOf(bake) || {}).key || "d" + bake;
-  const capOf = (bake) => (blockOf(bake) || {}).cap || cfg.capacity;
+  const capOf = (bake) => { const bl = blockOf(bake); if (bl) return bl.cap; return isBlocked(bake) || isBlocked(ymd(addDays(parse(bake), -1))) ? 0 : cfg.capacity; };
   const blockName = (bl) => { const f = (x) => nice(x, { day: "numeric", month: "short" }); return (bl.days > 2 ? "long weekend " : "weekend ") + f(bl.start) + "–" + f(bl.end); };
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function nice(s, opts) { return parse(s).toLocaleDateString("en-SG", opts || { weekday: "short", day: "numeric", month: "short" }); }
@@ -597,6 +620,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     let s = ""; for (let i = 0; i < Math.max(cap, n); i++) s += `<span class="slot ${i < n ? (i >= cap ? "over" : "full") : ""}"></span>`;
     $("#wkSlots").innerHTML = s + `<span class="num" style="margin-left:6px">${n}/${cap}</span>`;
     $("#wkNote").textContent = n >= cap ? (n > cap ? "Over capacity" : "Fully booked") : (cap - n) + " boule" + (cap - n === 1 ? "" : "s") + " still open";
+    if (!cap) { const r = blockedOn(bl.start) || blockedOn(bl.end); $("#wkNote").textContent = "Blocked" + (r && r.reason ? ": " + r.reason : ""); }
     const unpaid = orders.filter(o => o.payment !== "paid" && o.status !== "cancelled");
     $("#owed").textContent = money(unpaid.reduce((a, o) => a + total(o), 0));
     $("#owedNote").textContent = unpaid.length ? unpaid.length + " unpaid order" + (unpaid.length === 1 ? "" : "s") : "All paid up";
@@ -629,16 +653,17 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     let h = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => `<div class="dow ${i > 4 ? "we" : ""}">${d}</div>`).join("");
     const td = todayS(), smap = scheduleMap();
     for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
-      const s = ymd(d), dow = (d.getDay() + 6) % 7, we = isOff(s), ph = offName(s);
+      const s = ymd(d), dow = (d.getDay() + 6) % 7, we = isOff(s), ph = offName(s), away = blockedOn(s);
       const list = (byDate[s] || []).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
       let cap = "";
       if (we && !isOff(ymd(addDays(d, -1)))) {
         const bl = blockOf(s), n = capLoad(bl.key);
         cap = `<span class="cap ${n > bl.cap ? "over" : n === bl.cap ? "full" : ""}" title="Boules booked for the ${blockName(bl)} (${bl.bakeDays} bake day${bl.bakeDays > 1 ? "s" : ""})">${n}/${bl.cap}</span>`;
       }
-      h += `<div class="day ${we ? "we" : ""} ${d.getMonth() !== first.getMonth() ? "out" : ""} ${s === td ? "today" : ""}" data-date="${s}" role="button" tabindex="0" aria-label="${nice(s)} – add order">
+      h += `<div class="day ${we ? "we" : ""}${away ? " away" : ""} ${d.getMonth() !== first.getMonth() ? "out" : ""} ${s === td ? "today" : ""}" data-date="${s}" role="button" tabindex="0" aria-label="${nice(s)} – add order">
         <div class="dtop"><span class="dnum">${d.getDate()}</span>${cap}</div>
         ${ph ? `<span class="ph" title="${esc(ph)}">${esc(ph)}</span>` : ""}
+        ${away ? `<span class="awayl" title="${esc(away.reason || "Blocked")}">${esc(away.reason || "Blocked")}</span>` : ""}
         ${(smap[s] || []).length ? `<div class="blks">${smap[s].map(b => `<span class="blk ${b.kind} ${b.clash ? "clash" : ""}" title="${fmt(b.start)}–${fmt(b.end)} ${esc(b.label)}"><span class="t">${fmt(b.start)}</span> <span class="l">${esc(b.short)}</span></span>`).join("")}</div>` : ""}
         <div class="chips">${list.map(o => `<button type="button" class="chip ${o.status === "cancelled" ? "cancelled" : ""}" data-order="${esc(o.id)}" title="${esc(o.name)} · ${boules(o)} boule(s) · ${o.payment === "paid" ? "paid" : "unpaid"}">
           ${(o.lines || []).map(l => `<span class="dot ${esc(l.flavour)}"></span>`).join("")}
@@ -760,6 +785,8 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
       if (n > cap) msgs.push(`This makes ${n} boules for the ${bl ? blockName(bl) : nice(bake)}, over your limit of ${cap}. Save anyway if you can stretch.`);
       else if (nd > cfg.capacity) msgs.push(`That's ${nd} boules baked on ${nice(bake)}, more than ${cfg.capacity} in one bake day.${bl && bl.bakeDays > 1 ? " Move some to the other bake day this " + (bl.days > 2 ? "long weekend" : "weekend") + "." : ""}`);
       if (!bl && !msgs.length) msgs.push(`Heads up: ${nice(bake)} is a workday bake, with prep the day before.`);
+      const prepD = ymd(addDays(parse(bake), -1)), awayB = blockedOn(bake) || blockedOn(prepD);
+      if (awayB) msgs.splice(0, msgs.length, `You've blocked ${nice(blockedOn(bake) ? bake : prepD)}${awayB.reason ? " (" + awayB.reason + ")" : ""}, so there's no ${blockedOn(bake) ? "bake day" : "prep day"} for this order. Pick another date, or change the Bake on date.`);
       w.hidden = !msgs.length; w.textContent = msgs.join(" ");
     } else w.hidden = true;
     const pb = $("#planBox");
@@ -934,6 +961,31 @@ tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
     try { localStorage.setItem("bb-tab", b.dataset.tab); } catch {}
   });
   $("#newOrderBtn").onclick = () => openOrder(null);
+  function renderBlockList() {
+    const list = (cfg.blocked || []).slice().sort((a, b) => a.start.localeCompare(b.start));
+    $("#blockList").innerHTML = list.length ? list.map(r => `<div class="gline"><span>${esc(nice(r.start))}${r.end && r.end !== r.start ? " – " + esc(nice(r.end)) : ""} · ${esc(r.reason || "Blocked")}</span><button class="btn small danger" type="button" data-unblock="${esc(r.start)}|${esc(r.end || r.start)}">Remove</button></div>`).join("") : `<span class="note">Nothing blocked yet.</span>`;
+  }
+  async function saveBlocked(list) {
+    const next = JSON.parse(JSON.stringify(cfg)); next.blocked = list;
+    try { if (db) await db.doc("config/main").set(next); cfg = next; renderAll(); renderBlockList(); return true; }
+    catch { toast("Couldn't save. Check your connection and try again."); return false; }
+  }
+  $("#blockBtn").onclick = () => { ["#bStart", "#bEnd", "#bReason"].forEach(s => $(s).value = ""); renderBlockList(); $("#blockSheet").hidden = false; };
+  $("#closeBlock").onclick = () => { $("#blockSheet").hidden = true; };
+  $("#blockSheet").addEventListener("click", e => {
+    if (e.target.id === "blockSheet") { $("#blockSheet").hidden = true; return; }
+    const u = e.target.closest("[data-unblock]");
+    if (u) { const [s, en] = u.dataset.unblock.split("|"); saveBlocked((cfg.blocked || []).filter(r => !(r.start === s && (r.end || r.start) === en))).then(ok => ok && toast("Dates unblocked")); }
+  });
+  $("#blockForm").onsubmit = async (e) => {
+    e.preventDefault();
+    let s = $("#bStart").value, en = $("#bEnd").value || s; if (!s) return; if (en < s) [s, en] = [en, s];
+    const hit = orders.filter(o => { if (o.status === "cancelled" || !o.date) return false; const b = bakeOf(o), p = ymd(addDays(parse(b), -1)); return [o.date, b, p].some(x => x >= s && x <= en); });
+    if (await saveBlocked([...(cfg.blocked || []), { start: s, end: en, reason: $("#bReason").value.trim() }])) {
+      ["#bStart", "#bEnd", "#bReason"].forEach(x => $(x).value = "");
+      toast(hit.length ? `Blocked. ${hit.length > 1 ? hit.length + " orders fall" : "1 order falls"} in these dates. Check ${hit.length > 1 ? "them" : "it"}.` : "Dates blocked");
+    }
+  };
   $("#prevM").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCal(); };
   $("#nextM").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCal(); };
   $("#todayM").onclick = () => { viewMonth = startOfMonth(new Date()); renderCal(); };
