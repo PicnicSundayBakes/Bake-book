@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2F5D50">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bake Book">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Bake Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — status strip, tabbed views (calendar / orders / pantry / recipe), modal order sheet */
+:root {
+  --bg: #F3F2EC;
+  --surface: #FFFFFF;
+  --sunk: #E9E7DE;
+  --line: #D9D6C9;
+  --ink: #26221E;
+  --muted: #6B665C;
+  --accent: #2F5D50;
+  --accent-ink: #FFFFFF;
+  --weekend: #EDE6D2;
+  --ok: #2F7A4A;
+  --warn: #B7791F;
+  --bad: #B3362B;
+  --f-plain: #B8904F;
+  --f-hbh: #C0462B;
+  --f-cj: #5F7F24;
+  --f-st: #8E2B3C;
+  --display: "Young Serif", Georgia, "Times New Roman", serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #191816; --surface: #23211E; --sunk: #2C2A26; --line: #3A3732; --ink: #EEEAE2; --muted: #A49E92;
+  --accent: #7DB8A3; --accent-ink: #11201B; --weekend: #2E2A21; --ok: #6CC08A; --warn: #E0A84A; --bad: #EF7A6C;
+  --f-plain: #D4AE6E; --f-hbh: #E86A4E; --f-cj: #9DBE58; --f-st: #D06A7C; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #191816; --surface: #23211E; --sunk: #2C2A26; --line: #3A3732; --ink: #EEEAE2; --muted: #A49E92;
+  --accent: #7DB8A3; --accent-ink: #11201B; --weekend: #2E2A21; --ok: #6CC08A; --warn: #E0A84A; --bad: #EF7A6C;
+  --f-plain: #D4AE6E; --f-hbh: #E86A4E; --f-cj: #9DBE58; --f-st: #D06A7C; color-scheme: dark }
+
+* { box-sizing: border-box }
+html { -webkit-text-size-adjust: 100% }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+body { margin: 0 }
+[hidden] { display: none !important }
+img { max-width: 100% }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance }
+h1 { font-size: 1.9rem; letter-spacing: -0.01em }
+h2 { font-size: 1.35rem }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600 }
+.muted { color: var(--muted) }
+button, select, input, textarea { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px }
+.top .sub { color: var(--muted); font-size: 0.9rem }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 600 }
+.btn:hover { border-color: var(--ink) }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.btn.primary:hover { filter: brightness(1.08) }
+.btn.danger { color: var(--bad) }
+.btn.small { padding: 4px 10px; font-size: 0.85rem }
+.btn:disabled { opacity: .5; cursor: not-allowed }
+
+/* status strip */
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px }
+a.btn { text-decoration: none; color: var(--ink); display: inline-block }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.stat .big { font-family: var(--mono); font-size: 1.5rem; font-variant-numeric: tabular-nums }
+.slots { display: flex; gap: 6px; align-items: center }
+.slot { width: 26px; height: 26px; border-radius: 50%; border: 2px dashed var(--line) }
+.slot.full { border: 2px solid var(--accent); background: var(--accent) }
+.slot.over { border-color: var(--bad); background: var(--bad) }
+
+.alerts { display: flex; flex-direction: column; gap: 6px }
+.alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; border: 1px solid var(--line); background: var(--surface); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 12px }
+.alert.bad { border-left-color: var(--bad) }
+.alert .msg { flex: 1 1 240px; min-width: 0 }
+
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto }
+nav.tabs button { border: 0; background: none; padding: 10px 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+
+/* calendar */
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.cal-nav { display: flex; gap: 6px }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--line); gap: 1px }
+.dow { background: var(--sunk); padding: 6px 8px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--muted) }
+.dow.we { color: var(--ink) }
+.day { background: var(--surface); min-height: 104px; padding: 6px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; min-width: 0; position: relative }
+.day.we { background: var(--weekend) }
+.day.out { opacity: .45 }
+.day.today .dnum { background: var(--ink); color: var(--bg); border-radius: 999px; padding: 0 7px }
+.day:hover { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1 }
+.dtop { display: flex; justify-content: space-between; align-items: center; gap: 4px }
+.dnum { font-family: var(--mono); font-size: 0.8rem }
+.cap { font-family: var(--mono); font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap }
+.cap.full { border-color: var(--accent); color: var(--accent) }
+.cap.over { border-color: var(--bad); color: var(--bad) }
+.chip { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 5px; min-width: 0; text-align: left; width: 100% }
+.chip:hover { border-color: var(--ink) }
+.chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0 }
+.chip.cancelled { text-decoration: line-through; opacity: .6 }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--f-plain) }
+.dot.hbh { background: var(--f-hbh) } .dot.cheddar-jalapeno { background: var(--f-cj) } .dot.sundried-tomato { background: var(--f-st) }
+.pay { font-size: 0.66rem; font-weight: 700; flex: none }
+.pay.unpaid { color: var(--bad) } .pay.paid { color: var(--ok) }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+
+@media (max-width: 640px) {
+  .day { min-height: 70px; padding: 4px }
+  .chip .nm, .chip .pay { display: none }
+  .chip { width: auto; padding: 3px; border-radius: 50% }
+  .chips { display: flex; flex-wrap: wrap; gap: 3px }
+  .cap { font-size: 0.6rem; padding: 0 4px }
+}
+.chips { display: flex; flex-direction: column; gap: 3px }
+.del { font-size: 0.58rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 3px; flex: none }
+@media (max-width: 640px) { .chip .del { display: none } }
+.ph { font-size: 0.62rem; font-weight: 700; color: var(--accent); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.blks { display: flex; flex-direction: column; gap: 2px }
+.blk { font-size: 0.68rem; line-height: 1.3; padding: 1px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--muted); background: var(--sunk); color: var(--ink) }
+.blk .t { font-family: var(--mono) }
+.blk.feed { border-left-color: var(--f-plain) }
+.blk.mix { border-left-color: var(--accent) }
+.blk.bake { border-left-color: var(--f-hbh) }
+.blk.clash, .pblk.clash { outline: 1px solid var(--bad) }
+@media (max-width: 640px) { .blk { font-size: 0; padding: 0; height: 5px; border-left-width: 0 } .blk.feed { background: var(--f-plain) } .blk.mix { background: var(--accent) } .blk.bake { background: var(--f-hbh) } }
+.plan { display: flex; flex-direction: column; gap: 8px }
+.pday { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line) }
+.pday:last-child { border-bottom: 0 }
+.pdate { display: flex; flex-direction: column; font-size: 0.9rem }
+.prow { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.pblk { border-left: 3px solid var(--muted); background: var(--bg); border-radius: 4px; padding: 5px 8px; font-size: 0.88rem }
+.pblk.feed { border-left-color: var(--f-plain) } .pblk.mix { border-left-color: var(--accent) } .pblk.bake { border-left-color: var(--f-hbh) } .pblk.pick { border-left-color: var(--ok) }
+
+/* lists / tables */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+.tablewrap { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem }
+th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap }
+td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle }
+tr:last-child td { border-bottom: 0 }
+td.r, th.r { text-align: right }
+tr.click { cursor: pointer } tr.click:hover td { background: var(--sunk) }
+.pill { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap }
+.pill.ok { color: var(--ok) } .pill.warn { color: var(--warn) } .pill.bad { color: var(--bad) } .pill.neutral { color: var(--muted) } .pill.acc { color: var(--accent) }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.filters select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface) }
+
+/* pantry */
+.pantry { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0 }
+.item .hd { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start }
+.item .nm { font-weight: 700 }
+.item .brand { font-size: 0.82rem; color: var(--muted) }
+.bar { height: 10px; border-radius: 999px; background: var(--sunk); position: relative; overflow: hidden }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ok); border-radius: 999px }
+.bar .res { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, var(--warn) 0 4px, transparent 4px 7px); opacity: .8 }
+.bar .mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink) }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 0.86rem }
+.kv dt { color: var(--muted) } .kv dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums }
+.item .acts { display: flex; gap: 6px; flex-wrap: wrap }
+
+/* forms */
+.overlay { position: fixed; inset: 0; background: rgba(20,18,15,.45); display: flex; align-items: flex-start; justify-content: center; z-index: 20; overflow-y: auto;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)) }
+.sheet { background: var(--surface); border-radius: 12px; width: 100%; max-width: 560px; padding: 18px; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--line) }
+.sheet .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.field input, .field select, .field textarea, .inp { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); width: 100%; min-width: 0 }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+@media (max-width: 460px) { .row2 { grid-template-columns: 1fr } }
+.line { display: grid; grid-template-columns: 1fr 76px 70px 32px; gap: 8px; align-items: center }
+.line .price { text-align: right; font-family: var(--mono) }
+.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 32px; height: 36px; font-size: 1.1rem; line-height: 1 }
+.total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 10px }
+.total .num { font-size: 1.3rem }
+.warnbox { border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 10px; font-size: 0.88rem }
+.infobox { border: 1px solid var(--line); background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-size: 0.86rem }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-wrap: wrap }
+.seg button { border: 0; background: var(--surface); padding: 7px 12px; font-weight: 600; font-size: 0.88rem; color: var(--muted) }
+.seg button + button { border-left: 1px solid var(--line) }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+.foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap }
+.foot .r { display: flex; gap: 8px }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-weight: 600; z-index: 30; font-size: 0.9rem; max-width: calc(100% - 32px) }
+.note { font-size: 0.82rem; color: var(--muted) }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
+.gline { display: grid; grid-template-columns: 1fr 90px; gap: 8px; align-items: center; font-size: 0.9rem }
+.gline .inp { text-align: right; font-family: var(--mono) }
+.empty { padding: 28px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+</style>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="label">Phoenix sourdough · home bakery</div>
+      <h1>Bake Book</h1>
+    </div>
+    <button class="btn primary" id="newOrderBtn" type="button">+ New order</button>
+  </header>
+
+  <div id="offline" class="infobox" hidden></div>
+
+  <section class="strip" aria-label="Summary">
+    <div class="stat">
+      <span class="label" id="wkLabel">This weekend</span>
+      <div class="slots" id="wkSlots"></div>
+      <span class="note" id="wkNote"></span>
+    </div>
+    <div class="stat">
+      <span class="label">Payments outstanding</span>
+      <span class="big" id="owed">$0</span>
+      <span class="note" id="owedNote"></span>
+    </div>
+    <div class="stat">
+      <span class="label">Profit this month</span>
+      <span class="big" id="profit">$0</span>
+      <span class="note" id="profitNote"></span>
+    </div>
+    <div class="stat">
+      <span class="label">Pantry</span>
+      <span class="big" id="pantryBig">—</span>
+      <span class="note" id="pantryNote"></span>
+    </div>
+  </section>
+
+  <div class="alerts" id="alerts"></div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="calendar" aria-selected="true" type="button">Calendar</button>
+    <button role="tab" data-tab="orders" aria-selected="false" type="button">Orders</button>
+    <button role="tab" data-tab="pantry" aria-selected="false" type="button">Pantry</button>
+    <button role="tab" data-tab="recipe" aria-selected="false" type="button">Recipe &amp; prices</button>
+  </nav>
+
+  <section id="v-calendar" class="panel">
+    <div class="cal-head">
+      <h2 id="calTitle">Month</h2>
+      <div class="cal-nav">
+        <button class="btn small" id="prevM" type="button" aria-label="Previous month">‹</button>
+        <button class="btn small" id="todayM" type="button">Today</button>
+        <button class="btn small" id="nextM" type="button" aria-label="Next month">›</button>
+      </div>
+    </div>
+    <div class="cal" id="cal"></div>
+    <div class="legend" id="legend"></div>
+    <p class="note">Tap a day to add an order for that date. Public holidays are shaded like weekends. The pill on the first day of each weekend or long weekend shows boules booked out of what you can bake then. Shaded bars mark the day before pickup for starter feeding and mixing, and the pickup day for baking.</p>
+  </section>
+
+  <section class="panel" id="v-plan">
+    <div><h2>Bake plan</h2><span class="note">Next 3 weeks. Times come from the Recipe &amp; prices tab.</span></div>
+    <div id="plan" class="plan"></div>
+  </section>
+
+  <section id="v-orders" class="panel" hidden>
+    <div class="filters">
+      <select id="fWhen" aria-label="Which orders">
+        <option value="upcoming">Upcoming</option>
+        <option value="past">Past</option>
+        <option value="all">All</option>
+      </select>
+      <select id="fPay" aria-label="Payment">
+        <option value="any">Any payment</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="paid">Paid</option>
+      </select>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Pickup</th><th>Customer</th><th>Boules</th><th class="r">Total</th><th class="r">Profit</th><th>Payment</th><th>Status</th></tr></thead>
+      <tbody id="orderRows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="v-pantry" hidden>
+    <div class="panel" style="margin-bottom:12px">
+      <p class="note" style="margin:0">Orders reserve ingredients the moment you take them (striped). Marking an order <b>Baked</b> draws the grams out of stock. The black tick is your top-up level.</p>
+    </div>
+    <div class="pantry" id="pantry"></div>
+    <div style="margin-top:12px"><button class="btn" id="addItemBtn" type="button">+ Add ingredient</button></div>
+  </section>
+
+  <section id="v-recipe" class="panel" hidden>
+    <div class="row2">
+      <div class="field"><label class="label" for="capIn">Boules per bake day</label><input id="capIn" type="number" min="1" step="1"></div>
+      <div class="field"><label class="label" for="feeIn">Default delivery fee ($)</label><input id="feeIn" type="number" min="0" step="0.5"></div>
+    </div>
+    <div class="recipe-grid" id="recipeGrid"></div>
+    <div class="foot"><span class="note">Remember to tap Save after adding days off. Grams are per boule. Starter feed is the flour you feed Phoenix per boule (your 1:2:2 feeds use ~40g).</span><button class="btn primary" id="saveRecipe" type="button">Save recipe &amp; prices</button></div>
+    <div class="panel" style="background:var(--bg)">
+      <h3 style="font-size:1.05rem">Account &amp; backup</h3>
+      <span class="note">Signed in as <b id="acctEmail">—</b>. Your phone and iPad share the same data.</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" type="button" id="exportBtn">Save a backup file</button>
+        <label class="btn" for="importFile" style="cursor:pointer">Import a backup file</label>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+        <button class="btn danger" type="button" id="signOut">Sign out</button>
+      </div>
+      <div id="importMsg" class="infobox" hidden></div>
+    </div>
+  </section>
+</div>
+
+<div class="overlay" id="orderSheet" hidden>
+  <form class="sheet" id="orderForm" autocomplete="off">
+    <div class="hd"><h2 id="sheetTitle">New order</h2><button class="iconbtn" type="button" id="closeSheet" aria-label="Close">×</button></div>
+    <div class="row2">
+      <div class="field"><label class="label" for="oName">Customer</label><input id="oName" required placeholder="Name"></div>
+      <div class="field"><label class="label" for="oContact">Phone / handle</label><input id="oContact" placeholder="9123 4567"></div>
+    </div>
+    <div class="field"><span class="label">Pickup or delivery</span>
+      <div class="seg" id="modeSeg"><button type="button" data-v="pickup">Pickup</button><button type="button" data-v="delivery">Delivery</button></div>
+    </div>
+    <div class="row2" id="delRow" hidden>
+      <div class="field"><label class="label" for="oAddr">Delivery address</label><input id="oAddr" placeholder="Blk, street, unit, postal code"></div>
+      <div class="field"><label class="label" for="oFee">Delivery fee ($)</label><input id="oFee" type="number" min="0" step="0.5"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="label" for="oDate" id="oDateLbl">Pickup date</label><input id="oDate" type="date" required></div>
+      <div class="field"><label class="label" for="oTime" id="oTimeLbl">Pickup time</label><input id="oTime" type="time"></div>
+    </div>
+    <div class="field"><label class="label" for="oBake">Bake on</label><input id="oBake" type="date"><span class="note">Usually the pickup day. A workday pickup straight after a weekend or holiday is baked on that day off.</span></div>
+    <div class="field">
+      <span class="label">Boules</span>
+      <div id="lines" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div><button class="btn small" type="button" id="addLine">+ Another flavour</button></div>
+    </div>
+    <div id="capWarn" class="warnbox" hidden></div>
+    <div id="planBox" class="infobox" hidden></div>
+    <div class="field"><span class="label">Payment</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="seg" id="paySeg"><button type="button" data-v="unpaid">Unpaid</button><button type="button" data-v="paid">Paid</button></div>
+        <select id="oMethod" class="inp" style="width:auto" aria-label="Payment method"><option>PayNow</option><option>Cash</option><option>Bank transfer</option><option>PayLah!</option></select>
+      </div>
+    </div>
+    <div class="field"><span class="label">Order status</span>
+      <div class="seg" id="statSeg"><button type="button" data-v="confirmed">Confirmed</button><button type="button" data-v="baked">Baked</button><button type="button" data-v="collected">Collected</button><button type="button" data-v="cancelled">Cancelled</button></div>
+      <span class="note">Baked or Collected takes the ingredients out of your pantry stock.</span>
+    </div>
+    <div class="field"><label class="label" for="oNotes">Notes</label><textarea id="oNotes" rows="2" placeholder="Slice it, extra crusty, etc."></textarea></div>
+    <div class="total"><span class="label">Total</span><span class="num" id="oTotal">$0</span></div>
+    <div class="note" id="oCost" style="text-align:right;margin-top:-8px"></div>
+    <div class="foot">
+      <div><button class="btn danger" type="button" id="delOrder" hidden>Delete</button></div>
+      <div class="r"><button class="btn" type="button" id="cancelSheet">Cancel</button><button class="btn primary" type="submit" id="saveOrder">Save order</button></div>
+    </div>
+  </form>
+</div>
+
+<div class="overlay" id="itemSheet" hidden>
+  <form class="sheet" id="itemForm" autocomplete="off">
+    <div class="hd"><h2 id="itemTitle">Ingredient</h2><button class="iconbtn" type="button" id="closeItem" aria-label="Close">×</button></div>
+    <div class="row2">
+      <div class="field"><label class="label" for="iName">Ingredient</label><input id="iName" required></div>
+      <div class="field"><label class="label" for="iBrand">Brand / pack</label><input id="iBrand" placeholder="Bob's Red Mill"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="label" for="iStock">In stock now (g)</label><input id="iStock" type="number" min="0" step="1" required></div>
+      <div class="field"><label class="label" for="iPack">One pack (g)</label><input id="iPack" type="number" min="0" step="1"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="label" for="iReorder">Top up when below (g)</label><input id="iReorder" type="number" min="0" step="1"></div>
+      <div class="field"><label class="label" for="iPrice">Price per pack ($)</label><input id="iPrice" type="number" min="0" step="0.01"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="label" for="iSupplier">Where you buy it</label><input id="iSupplier" placeholder="RedMan"></div>
+      <div class="field"><label class="label" for="iUrl">Product link</label><input id="iUrl" type="url" placeholder="https://shop.redmanshop.com/…"></div>
+    </div>
+    <div class="foot">
+      <div><button class="btn danger" type="button" id="delItem" hidden>Remove</button></div>
+      <div class="r"><button class="btn" type="button" id="cancelItem">Cancel</button><button class="btn primary" type="submit">Save</button></div>
+    </div>
+  </form>
+</div>
+
+<div class="overlay" id="loginSheet" hidden>
+  <form class="sheet" id="loginForm" autocomplete="on">
+    <div><div class="label">Phoenix sourdough</div><h2>Sign in to Bake Book</h2></div>
+    <div class="field"><label class="label" for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" required></div>
+    <div class="field"><label class="label" for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+    <div id="loginMsg" class="warnbox" hidden></div>
+    <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
+    <span class="note">Use the same account on your phone and iPad so they share orders.</span>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  const DEFAULT_CONFIG = {
+    capacity: 2,
+    schedule: { feedStart: "07:30", feedEnd: "13:00", mixStart: "13:00", mixEnd: "20:00", bakeStart: "07:00", preheat: 60, perBake: 28, cool: 60 },
+    flavours: [
+      { id: "plain", name: "Plain", price: 12 },
+      { id: "hbh", name: "Har Bee Hiam", price: 15 },
+      { id: "cheddar-jalapeno", name: "Cheddar & Jalapeño", price: 15 },
+      { id: "sundried-tomato", name: "Sundried Tomato", price: 15 }
+    ],
+    base: [
+      { item: "bread-flour", label: "Bread flour (dough)", g: 338 },
+      { item: "bread-flour", label: "Bread flour (starter feed)", g: 40 },
+      { item: "semolina", label: "Semolina", g: 38 },
+      { item: "salt", label: "Salt", g: 8 }
+    ],
+    inclusions: {
+      "hbh": [{ item: "har-bee-hiam", label: "Har bee hiam (~2 tbsp)", g: 30 }],
+      "cheddar-jalapeno": [{ item: "cheddar", label: "Cheddar", g: 50 }, { item: "jalapenos", label: "Jalapeños", g: 30 }],
+      "sundried-tomato": [{ item: "sundried-tomatoes", label: "Sundried tomatoes (~5 pieces)", g: 40 }]
+    }
+  };
+  const ACTIVE = ["confirmed"];            // reserves ingredients
+  const DRAWN = ["baked", "collected"];     // ingredients taken from stock
+
+  let db = null, cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  let orders = [], inv = {}, loaded = { o: false, i: false };
+  let viewMonth = startOfMonth(new Date());
+  let editing = null, sheetPay = "unpaid", sheetStat = "confirmed";
+
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const money = (n) => "$" + (Math.round(n * 100) / 100).toLocaleString("en-SG", { minimumFractionDigits: Number.isInteger(Math.round(n * 100) / 100) ? 0 : 2, maximumFractionDigits: 2 });
+  const grams = (g) => Math.abs(g) >= 1000 ? (g / 1000).toFixed(2).replace(/\.?0+$/, "") + " kg" : Math.round(g) + " g";
+
+  // ---- dates (local, YYYY-MM-DD strings) ----
+  function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function parse(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function weekKey(s) { const d = parse(s); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return ymd(d); } // Monday
+  // Singapore public holidays (MOM gazette), including Mondays observed in lieu
+  const SG_PH = {
+    "2026-01-01": "New Year's Day", "2026-02-17": "Chinese New Year", "2026-02-18": "Chinese New Year", "2026-03-21": "Hari Raya Puasa",
+    "2026-04-03": "Good Friday", "2026-05-01": "Labour Day", "2026-05-27": "Hari Raya Haji", "2026-05-31": "Vesak Day", "2026-06-01": "Vesak Day (in lieu)",
+    "2026-08-09": "National Day", "2026-08-10": "National Day (in lieu)", "2026-11-08": "Deepavali", "2026-11-09": "Deepavali (in lieu)", "2026-12-25": "Christmas Day",
+    "2027-01-01": "New Year's Day", "2027-02-06": "Chinese New Year", "2027-02-07": "Chinese New Year", "2027-02-08": "Chinese New Year (in lieu)",
+    "2027-03-10": "Hari Raya Puasa", "2027-03-26": "Good Friday", "2027-05-01": "Labour Day", "2027-05-17": "Hari Raya Haji", "2027-05-20": "Vesak Day",
+    "2027-08-09": "National Day", "2027-10-28": "Deepavali", "2027-12-25": "Christmas Day"
+  };
+  const offName = (s) => SG_PH[s] || ((cfg.daysOff || []).find(d => d.date === s) || {}).name || "";
+  const isOff = (s) => { const g = parse(s).getDay(); return g === 0 || g === 6 || !!offName(s); };
+  function blockOf(s) { // a run of days off (weekend, long weekend, leave): first day preps, every later day is a bake day
+    if (!s || !isOff(s)) return null;
+    let a = parse(s), b = parse(s);
+    while (isOff(ymd(addDays(a, -1)))) a = addDays(a, -1);
+    while (isOff(ymd(addDays(b, 1)))) b = addDays(b, 1);
+    const days = Math.round((b - a) / 864e5) + 1, bakeDays = Math.max(1, days - 1);
+    return { key: ymd(a), start: ymd(a), end: ymd(b), days, bakeDays, cap: cfg.capacity * bakeDays };
+  }
+  function defaultBake(pick) { // bake on pickup day; a workday pickup right after a day off bakes on that day off
+    if (!pick || isOff(pick)) return pick;
+    const prev = ymd(addDays(parse(pick), -1));
+    return isOff(prev) ? prev : pick;
+  }
+  const bakeOf = (o) => o.bakeDate || defaultBake(o.date);
+  const capKey = (bake) => (blockOf(bake) || {}).key || "d" + bake;
+  const capOf = (bake) => (blockOf(bake) || {}).cap || cfg.capacity;
+  const blockName = (bl) => { const f = (x) => nice(x, { day: "numeric", month: "short" }); return (bl.days > 2 ? "long weekend " : "weekend ") + f(bl.start) + "–" + f(bl.end); };
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function nice(s, opts) { return parse(s).toLocaleDateString("en-SG", opts || { weekday: "short", day: "numeric", month: "short" }); }
+  const todayS = () => ymd(new Date());
+
+  // ---- order math ----
+  const flav = (id) => cfg.flavours.find(f => f.id === id) || { id, name: id, price: 0 };
+  const boules = (o) => (o.lines || []).reduce((a, l) => a + (Number(l.qty) || 0), 0);
+  const total = (o) => (o.lines || []).reduce((a, l) => a + (Number(l.qty) || 0) * flav(l.flavour).price, 0) + (o.mode === "delivery" ? Number(o.deliveryFee) || 0 : 0);
+  function usage(o) {
+    const u = {};
+    for (const l of o.lines || []) {
+      const q = Number(l.qty) || 0;
+      for (const r of [...cfg.base, ...(cfg.inclusions[l.flavour] || [])]) u[r.item] = (u[r.item] || 0) + r.g * q;
+    }
+    return u;
+  }
+  function capLoad(key, exceptId) {
+    return orders.filter(o => o.status !== "cancelled" && o.id !== exceptId && o.date && capKey(bakeOf(o)) === key).reduce((a, o) => a + boules(o), 0);
+  }
+  function bakeDayLoad(d, exceptId) {
+    return orders.filter(o => o.status !== "cancelled" && o.id !== exceptId && o.date && bakeOf(o) === d).reduce((a, o) => a + boules(o), 0);
+  }
+  function reserved() {
+    const r = {};
+    for (const o of orders) if (ACTIVE.includes(o.status)) for (const [k, g] of Object.entries(usage(o))) r[k] = (r[k] || 0) + g;
+    return r;
+  }
+  function perBoule(itemId) { // grams of this item a plain boule uses (for "boules left")
+    return cfg.base.filter(r => r.item === itemId).reduce((a, r) => a + r.g, 0);
+  }
+  // ---- costs ----
+  const cpg = (id) => { const it = inv[id]; return it && Number(it.price) > 0 && Number(it.packSize) > 0 ? Number(it.price) / Number(it.packSize) : null; };
+  function costOf(u) {
+    let c = 0; const missing = [];
+    for (const [k, g] of Object.entries(u || {})) { const r = cpg(k); if (r === null) { if (g > 0) missing.push(inv[k]?.name || k); } else c += r * g; }
+    return { c, missing };
+  }
+  const orderCost = (o) => costOf(o.drawn || usage(o));
+  function bouleCost(fid) { return costOf(usage({ lines: [{ flavour: fid, qty: 1 }] })); }
+
+  function pantryState() {
+    const res = reserved();
+    return Object.values(inv).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map(it => {
+      const stock = Number(it.stock) || 0, rsv = res[it.id] || 0, after = stock - rsv, lvl = Number(it.reorderAt) || 0;
+      const state = after < 0 ? "bad" : after < lvl ? "warn" : "ok";
+      return { ...it, stock, rsv, after, lvl, state };
+    });
+  }
+
+  // ---- bake schedule ----
+  const hm = (s) => { const [a, b] = String(s || "0:0").split(":").map(Number); return (a || 0) * 60 + (b || 0); };
+  const fmt = (m) => String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(Math.round(m % 60)).padStart(2, "0");
+  const sch = () => ({ ...DEFAULT_CONFIG.schedule, ...(cfg.schedule || {}) });
+  function bouleCountByDate(exceptId, extra) {
+    const c = {};
+    for (const o of orders) if (o.status !== "cancelled" && o.date && o.id !== exceptId) { const b = bakeOf(o); c[b] = (c[b] || 0) + boules(o); }
+    if (extra) c[extra.date] = (c[extra.date] || 0) + extra.n;
+    return c;
+  }
+  function bakePlan(n) {
+    const s = sch(), start = hm(s.bakeStart), ovenReady = start + Number(s.preheat), end = ovenReady + Number(s.perBake) * n;
+    return { start, ovenReady, end, ready: end + Number(s.cool) };
+  }
+  function scheduleMap(counts) { // date -> [{kind,start,end,label}]
+    const s = sch(), map = {};
+    const add = (d, b) => (map[d] = map[d] || []).push(b);
+    for (const [date, n] of Object.entries(counts || bouleCountByDate())) {
+      if (!n) continue;
+      const prep = ymd(addDays(parse(date), -1)), p = bakePlan(n);
+      add(prep, { kind: "feed", start: hm(s.feedStart), end: hm(s.feedEnd), label: "Feed starter", short: "Feed", n, forDate: date });
+      add(prep, { kind: "mix", start: hm(s.mixStart), end: hm(s.mixEnd), label: `Mix & ferment ${n} boule${n > 1 ? "s" : ""}`, short: "Mix", n, forDate: date });
+      add(date, { kind: "bake", start: p.start, end: p.end, label: `Preheat + bake ${n} boule${n > 1 ? "s" : ""}`, short: "Bake ×" + n, n, ready: p.ready });
+    }
+    for (const list of Object.values(map)) {
+      list.sort((a, b) => a.start - b.start);
+      const bake = list.find(b => b.kind === "bake"), mix = list.find(b => b.kind === "mix");
+      if (bake && mix && bake.end > mix.start) bake.clash = mix.clash = true;
+    }
+    return map;
+  }
+
+  // ---- render ----
+  function renderAll() { renderStrip(); renderAlerts(); renderCal(); renderPlan(); renderOrders(); renderPantry(); }
+
+  function renderPlan() {
+    const map = scheduleMap(), td = todayS(), end = ymd(addDays(new Date(), 21));
+    const dates = Object.keys(map).filter(d => d >= td && d <= end).sort();
+    const pick = {}; for (const o of orders) if (o.status !== "cancelled") (pick[o.date] = pick[o.date] || []).push(o);
+    $("#plan").innerHTML = dates.length ? dates.map(d => {
+      const list = map[d], bake = list.find(b => b.kind === "bake");
+      const pk = (pick[d] || []).filter(o => o.status !== "cancelled").sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+      return `<div class="pday"><div class="pdate"><b>${nice(d, { weekday: "short" })}</b><span class="num">${nice(d, { day: "numeric", month: "short" })}</span></div>
+        <div class="prow">${list.map(b => `<div class="pblk ${b.kind} ${b.clash ? "clash" : ""}"><span class="num">${fmt(b.start)}–${fmt(b.end)}</span> <span>${esc(b.label)}${b.kind !== "bake" ? ` <span class="muted">for ${nice(b.forDate, { weekday: "short" })} bake</span>` : ""}</span>
+          ${b.kind === "bake" ? `<div class="note">Oven on ${fmt(b.start)}, ${b.n} × ${sch().perBake} min bakes from ${fmt(b.start + Number(sch().preheat))}. Cool till ${fmt(b.ready)}.</div>` : ""}
+          ${b.clash ? `<div class="note" style="color:var(--bad)">Clashes with mixing for the next day's bake.</div>` : ""}</div>`).join("")}
+        ${pk.map(o => { const late = bake && o.time && hm(o.time) < bake.ready; return `<div class="pblk pick ${late ? "clash" : ""}"><span class="num">${o.time ? esc(o.time) : "--:--"}</span> <span>${o.mode === "delivery" ? "Deliver" : "Pickup"}: ${esc(o.name)} (${boules(o)})${o.mode === "delivery" && o.address ? ` <span class="muted">${esc(o.address)}</span>` : ""}</span>${late ? `<div class="note" style="color:var(--bad)">Before the bread is cooled (${fmt(bake.ready)}).</div>` : ""}</div>`; }).join("")}
+        </div></div>`;
+    }).join("") : `<div class="empty">No bakes in the next 3 weeks. Prep and bake blocks appear here once you take an order.</div>`;
+  }
+
+  function renderStrip() {
+    let d0 = todayS(); for (let i = 0; i < 8 && !isOff(d0); i++) d0 = ymd(addDays(parse(d0), 1));
+    const bl = blockOf(d0), n = capLoad(bl.key), cap = bl.cap;
+    const hol = []; for (let x = parse(bl.start); ymd(x) <= bl.end; x = addDays(x, 1)) { const nm = offName(ymd(x)); if (nm) hol.push(nm.replace(" (in lieu)", "")); }
+    const bn = blockName(bl);
+    $("#wkLabel").textContent = bn.charAt(0).toUpperCase() + bn.slice(1) + (hol.length ? " · " + hol[0] : "");
+    let s = ""; for (let i = 0; i < Math.max(cap, n); i++) s += `<span class="slot ${i < n ? (i >= cap ? "over" : "full") : ""}"></span>`;
+    $("#wkSlots").innerHTML = s + `<span class="num" style="margin-left:6px">${n}/${cap}</span>`;
+    $("#wkNote").textContent = n >= cap ? (n > cap ? "Over capacity" : "Fully booked") : (cap - n) + " boule" + (cap - n === 1 ? "" : "s") + " still open";
+    const unpaid = orders.filter(o => o.payment !== "paid" && o.status !== "cancelled");
+    $("#owed").textContent = money(unpaid.reduce((a, o) => a + total(o), 0));
+    $("#owedNote").textContent = unpaid.length ? unpaid.length + " unpaid order" + (unpaid.length === 1 ? "" : "s") : "All paid up";
+    const mk = ymd(new Date()).slice(0, 7), mo = orders.filter(o => o.status !== "cancelled" && (o.date || "").startsWith(mk));
+    const rev = mo.reduce((a, o) => a + total(o), 0), cost = mo.reduce((a, o) => a + orderCost(o).c, 0);
+    $("#profit").textContent = money(rev - cost);
+    $("#profitNote").textContent = mo.length ? `${money(rev)} sales − ${money(cost)} ingredients` : "No orders this month yet";
+    const ps = pantryState(), low = ps.filter(p => p.state !== "ok");
+    $("#pantryBig").textContent = loaded.i ? (low.length ? low.length + " to top up" : "All stocked") : "—";
+    $("#pantryBig").style.color = low.some(p => p.state === "bad") ? "var(--bad)" : low.length ? "var(--warn)" : "var(--ok)";
+    const flour = ps.find(p => p.id === "bread-flour");
+    $("#pantryNote").textContent = flour ? "Bread flour covers " + Math.max(0, Math.floor(flour.after / perBoule("bread-flour"))) + " more boules after booked orders" : "";
+  }
+
+  function renderAlerts() {
+    const low = pantryState().filter(p => p.state !== "ok");
+    $("#alerts").innerHTML = low.map(p => `<div class="alert ${p.state}">
+      <span class="pill ${p.state}">${p.state === "bad" ? "Short" : "Top up"}</span>
+      <span class="msg"><b>${esc(p.name)}</b> — ${p.state === "bad" ? "booked orders need " + grams(p.rsv) + " but you have " + grams(p.stock) + ". Buy before the bake." : grams(p.after) + " left after booked orders, below your " + grams(p.lvl) + " top-up level."}</span>
+      ${p.packSize ? `<button class="btn small" type="button" data-topup="${esc(p.id)}">+1 pack (${grams(p.packSize)}${p.price ? ", " + money(p.price) : ""})</button>` : ""}
+      ${p.url ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Buy at ${esc(p.supplier || "shop")}</a>` : ""}
+    </div>`).join("") + (low.length > 1 && low.some(p => p.price) ? `<div class="note">Topping up everything flagged costs about <b>${money(low.reduce((a, p) => a + (Number(p.price) || 0), 0))}</b> at list price.</div>` : "");
+  }
+
+  function renderCal() {
+    $("#calTitle").textContent = viewMonth.toLocaleDateString("en-SG", { month: "long", year: "numeric" });
+    const first = viewMonth, startDow = (first.getDay() + 6) % 7, start = addDays(first, -startDow);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0), endDow = (last.getDay() + 6) % 7, end = addDays(last, 6 - endDow);
+    const byDate = {}; for (const o of orders) (byDate[o.date] = byDate[o.date] || []).push(o);
+    let h = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => `<div class="dow ${i > 4 ? "we" : ""}">${d}</div>`).join("");
+    const td = todayS(), smap = scheduleMap();
+    for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+      const s = ymd(d), dow = (d.getDay() + 6) % 7, we = isOff(s), ph = offName(s);
+      const list = (byDate[s] || []).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+      let cap = "";
+      if (we && !isOff(ymd(addDays(d, -1)))) {
+        const bl = blockOf(s), n = capLoad(bl.key);
+        cap = `<span class="cap ${n > bl.cap ? "over" : n === bl.cap ? "full" : ""}" title="Boules booked for the ${blockName(bl)} (${bl.bakeDays} bake day${bl.bakeDays > 1 ? "s" : ""})">${n}/${bl.cap}</span>`;
+      }
+      h += `<div class="day ${we ? "we" : ""} ${d.getMonth() !== first.getMonth() ? "out" : ""} ${s === td ? "today" : ""}" data-date="${s}" role="button" tabindex="0" aria-label="${nice(s)} – add order">
+        <div class="dtop"><span class="dnum">${d.getDate()}</span>${cap}</div>
+        ${ph ? `<span class="ph" title="${esc(ph)}">${esc(ph)}</span>` : ""}
+        ${(smap[s] || []).length ? `<div class="blks">${smap[s].map(b => `<span class="blk ${b.kind} ${b.clash ? "clash" : ""}" title="${fmt(b.start)}–${fmt(b.end)} ${esc(b.label)}"><span class="t">${fmt(b.start)}</span> <span class="l">${esc(b.short)}</span></span>`).join("")}</div>` : ""}
+        <div class="chips">${list.map(o => `<button type="button" class="chip ${o.status === "cancelled" ? "cancelled" : ""}" data-order="${esc(o.id)}" title="${esc(o.name)} · ${boules(o)} boule(s) · ${o.payment === "paid" ? "paid" : "unpaid"}">
+          ${(o.lines || []).map(l => `<span class="dot ${esc(l.flavour)}"></span>`).join("")}
+          ${o.mode === "delivery" ? `<span class="del" title="Delivery">DEL</span>` : ""}<span class="nm">${esc(o.name)}${boules(o) > 1 ? " ×" + boules(o) : ""}</span>
+          <span class="pay ${o.payment === "paid" ? "paid" : "unpaid"}">${o.payment === "paid" ? "✓$" : "$"}</span></button>`).join("")}</div>
+      </div>`;
+    }
+    $("#cal").innerHTML = h;
+    $("#legend").innerHTML = cfg.flavours.map(f => `<span><span class="dot ${esc(f.id)}"></span>${esc(f.name)} ${money(f.price)}</span>`).join("") +
+      `<span><b style="color:var(--bad)">$</b> unpaid</span><span><b style="color:var(--ok)">✓$</b> paid</span>`;
+  }
+
+  function linesText(o) { return (o.lines || []).map(l => (l.qty > 1 ? l.qty + "× " : "") + flav(l.flavour).name).join(", "); }
+  const statPill = { confirmed: "acc", baked: "warn", collected: "ok", cancelled: "neutral" };
+
+  function renderOrders() {
+    const w = $("#fWhen").value, p = $("#fPay").value, td = todayS();
+    let list = orders.filter(o => w === "all" || (w === "upcoming" ? o.date >= td : o.date < td));
+    if (p !== "any") list = list.filter(o => (o.payment === "paid") === (p === "paid"));
+    list.sort((a, b) => w === "past" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date));
+    $("#orderRows").innerHTML = list.length ? list.map(o => `<tr class="click" data-order="${esc(o.id)}">
+      <td class="num" style="white-space:nowrap">${nice(o.date)}${o.time ? " " + esc(o.time) : ""}<div class="note" style="white-space:normal;font-family:var(--body)">${o.mode === "delivery" ? "Delivery" + (o.address ? " · " + esc(o.address) : "") : "Pickup"}</div></td>
+      <td>${esc(o.name)}${o.contact ? `<div class="note">${esc(o.contact)}</div>` : ""}</td>
+      <td>${esc(linesText(o))}</td>
+      <td class="r num">${money(total(o))}</td>
+      <td class="r num">${(() => { const k = orderCost(o); return money(total(o) - k.c) + `<div class="note">cost ${money(k.c)}${k.missing.length ? "+" : ""}</div>`; })()}</td>
+      <td><span class="pill ${o.payment === "paid" ? "ok" : "bad"}">${o.payment === "paid" ? "Paid" : "Unpaid"}</span>${o.payment === "paid" && o.method ? `<div class="note">${esc(o.method)}</div>` : ""}</td>
+      <td><span class="pill ${statPill[o.status] || "neutral"}">${esc((o.status || "confirmed").replace(/^./, c => c.toUpperCase()))}</span></td>
+    </tr>`).join("") : `<tr><td colspan="7"><div class="empty">${loaded.o ? "No orders here yet. Tap “+ New order” or a day on the calendar." : "Loading orders…"}</div></td></tr>`;
+  }
+
+  function renderPantry() {
+    const ps = pantryState();
+    if (!ps.length) { $("#pantry").innerHTML = `<div class="empty" style="grid-column:1/-1">${loaded.i ? "No ingredients yet. Add your flour bags with “+ Add ingredient”." : "Loading pantry…"}</div>`; return; }
+    $("#pantry").innerHTML = ps.map(p => {
+      const scale = Math.max(p.stock, p.packSize || 0, p.lvl * 1.5, 1);
+      const fillW = Math.max(0, p.after) / scale * 100, resW = Math.min(p.rsv, p.stock) / scale * 100;
+      const pb = perBoule(p.id), incl = Object.entries(cfg.inclusions).find(([, rs]) => rs.some(r => r.item === p.id));
+      const per = pb || (incl ? incl[1].filter(r => r.item === p.id).reduce((a, r) => a + r.g, 0) : 0);
+      const left = per ? Math.max(0, Math.floor(p.after / per)) : null;
+      return `<article class="item">
+        <div class="hd"><div><div class="nm">${esc(p.name)}</div><div class="brand">${esc(p.brand || "")}</div></div><span class="pill ${p.state}">${p.state === "ok" ? "OK" : p.state === "warn" ? "Top up" : "Short"}</span></div>
+        <div class="bar" aria-hidden="true"><span class="fill" style="width:${fillW}%;background:var(--${p.state === "ok" ? "ok" : p.state})"></span><span class="res" style="left:${fillW}%;width:${resW}%"></span>${p.lvl ? `<span class="mark" style="left:${Math.min(100, p.lvl / scale * 100)}%"></span>` : ""}</div>
+        <dl class="kv"><dt>In stock</dt><dd>${grams(p.stock)}</dd><dt>Booked orders need</dt><dd>${grams(p.rsv)}</dd><dt>Left after orders</dt><dd style="color:var(--${p.state === "ok" ? "ink" : p.state})">${grams(p.after)}</dd>
+        ${left !== null ? `<dt>Enough for</dt><dd>${left} ${pb ? "boule" : flav(incl[0]).name + " boule"}${left === 1 ? "" : "s"}</dd>` : ""}
+        ${cpg(p.id) !== null ? `<dt>Pack price</dt><dd>${money(p.price)}</dd><dt>Per 100 g</dt><dd>${money(cpg(p.id) * 100)}</dd><dt>Stock value</dt><dd>${money(cpg(p.id) * Math.max(0, p.stock))}</dd>` : `<dt>Pack price</dt><dd style="color:var(--warn)">not set</dd>`}</dl>
+        ${p.supplier || p.salePrice ? `<div class="note">${p.supplier ? esc(p.supplier) + (p.sku ? " #" + esc(p.sku) : "") : ""}${p.salePrice ? ` · on sale ${money(p.salePrice)}` : ""}${p.priceChecked ? ` · checked ${esc(nice(p.priceChecked, { day: "numeric", month: "short" }))}` : ""}</div>` : ""}
+        <div class="acts">${p.packSize ? `<button class="btn small" type="button" data-topup="${esc(p.id)}">+1 pack (${grams(p.packSize)})</button>` : ""}<button class="btn small" type="button" data-edititem="${esc(p.id)}">Edit / stock-take</button>${p.url ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.supplier || "Shop")} page</a>` : ""}</div>
+      </article>`;
+    }).join("");
+  }
+
+  function renderRecipe() {
+    $("#capIn").value = cfg.capacity; $("#feeIn").value = Number(cfg.deliveryFee) || 0;
+    const itemName = (id) => inv[id]?.name || id;
+    let h = `<div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Every boule</h3>${cfg.base.map((r, i) => `<label class="gline"><span>${esc(r.label)}</span><input class="inp" type="number" min="0" step="1" data-base="${i}" value="${r.g}" aria-label="${esc(r.label)} grams"></label>`).join("")}<span class="note">Plus 75g starter and 245g water (not tracked as stock).</span></div>`;
+    h += `<div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Flavours &amp; prices</h3>${cfg.flavours.map((f, fi) => `
+      <label class="gline"><span><span class="dot ${esc(f.id)}" style="display:inline-block;margin-right:6px"></span><b>${esc(f.name)}</b> price ($)</span><input class="inp" type="number" min="0" step="0.5" data-price="${fi}" value="${f.price}"></label>
+      ${(cfg.inclusions[f.id] || []).map((r, ri) => `<label class="gline" style="padding-left:16px"><span class="muted">${esc(r.label)} (g)</span><input class="inp" type="number" min="0" step="1" data-inc="${esc(f.id)}:${ri}" value="${r.g}"></label>`).join("")}`).join("")}
+      <span class="note">Har bee hiam: 2 tbsp ≈ 30g. Sundried tomatoes: 5 pieces ≈ 40g. Weigh once on your next bake and adjust.</span></div>`;
+    const s = sch();
+    const t = (k, lab) => `<label class="gline"><span>${lab}</span><input class="inp" type="time" data-sch="${k}" value="${esc(s[k])}"></label>`;
+    const m = (k, lab) => `<label class="gline"><span>${lab}</span><input class="inp" type="number" min="0" step="1" data-schn="${k}" value="${Number(s[k])}"></label>`;
+    h += `<div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Day before pickup</h3>
+      ${t("feedStart", "Starter feed starts")}${t("feedEnd", "Starter feed ends")}${t("mixStart", "Mix &amp; ferment starts")}${t("mixEnd", "Mix &amp; ferment ends")}</div>
+      <div class="panel" style="background:var(--bg)"><h3 style="font-size:1.05rem">Pickup day (bake)</h3>
+      ${t("bakeStart", "Oven on at")}${m("preheat", "Preheat (min)")}${m("perBake", "Each bake (min)")}${m("cool", "Cool before pickup (min)")}
+      <span class="note">One boule per bake, so 2 boules = ${s.preheat} + 2 × ${s.perBake} = ${Number(s.preheat) + 2 * Number(s.perBake)} min.</span></div>`;
+    h += `<div class="panel" style="background:var(--bg);grid-column:1/-1"><h3 style="font-size:1.05rem">Cost per boule</h3><div class="tablewrap"><table>
+      <thead><tr><th>Flavour</th><th class="r">Price</th><th class="r">Ingredients</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead><tbody>
+      ${cfg.flavours.map(f => { const k = bouleCost(f.id), pr = f.price - k.c; return `<tr><td><span class="dot ${esc(f.id)}" style="display:inline-block;margin-right:6px"></span>${esc(f.name)}</td><td class="r num">${money(f.price)}</td><td class="r num">${money(k.c)}${k.missing.length ? `<div class="note" style="color:var(--warn)">+ ${esc(k.missing.join(", "))} (no price)</div>` : ""}</td><td class="r num">${money(pr)}</td><td class="r num">${f.price ? Math.round(pr / f.price * 100) + "%" : "–"}</td></tr>`; }).join("")}
+      </tbody></table></div><span class="note">Ingredient cost only, at list pack prices from the Pantry tab. Excludes electricity, packaging and your time.</span></div>`;
+    pendingOff = (cfg.daysOff || []).map(x => ({ ...x }));
+    const td0 = todayS(), soon = Object.entries(SG_PH).filter(([d]) => d >= td0 && !/in lieu/.test(SG_PH[d])).slice(0, 8);
+    h += `<div class="panel" style="background:var(--bg);grid-column:1/-1"><h3 style="font-size:1.05rem">Days off &amp; long weekends</h3>
+      <span class="note">Weekends and Singapore public holidays are built in. In each run of days off, the first day is prep and every day after it is a bake day of ${cfg.capacity} boules.</span>
+      <div id="offList" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px"><input class="inp" type="date" id="offDate" aria-label="Day off date"><input class="inp" id="offName" placeholder="Annual leave" aria-label="Reason"><button class="btn small" type="button" id="offAdd">Add</button></div>
+      <div class="label" style="margin-top:6px">Coming public holidays</div>
+      ${soon.map(([d, nm]) => { const bl = blockOf(d); return `<div class="gline"><span>${esc(nice(d))} · ${esc(nm)}</span><span class="note" style="text-align:right">${bl.days > 2 ? bl.days + "-day weekend · " + bl.cap + " boules" : bl.days === 2 ? "normal weekend" : "single day off"}</span></div>`; }).join("")}
+    </div>`;
+    $("#recipeGrid").innerHTML = h;
+    renderOffList();
+    $("#offAdd").onclick = () => { const d = $("#offDate").value; if (!d) return; pendingOff = pendingOff.filter(x => x.date !== d).concat([{ date: d, name: $("#offName").value.trim() || "Day off" }]).sort((a, b) => a.date.localeCompare(b.date)); $("#offDate").value = ""; $("#offName").value = ""; renderOffList(); };
+  }
+  let pendingOff = [];
+  function renderOffList() {
+    const el = $("#offList"); if (!el) return;
+    el.innerHTML = pendingOff.length ? pendingOff.map((x, i) => `<div class="gline"><span>${esc(nice(x.date))} · ${esc(x.name)}</span><button class="btn small danger" type="button" data-offdel="${i}">Remove</button></div>`).join("") : `<span class="note">No extra days off. Add leave days here to open up more bake days.</span>`;
+    el.querySelectorAll("[data-offdel]").forEach(b => b.onclick = () => { pendingOff.splice(+b.dataset.offdel, 1); renderOffList(); });
+  }
+
+  // ---- order sheet ----
+  function lineRow(l) {
+    const div = document.createElement("div"); div.className = "line";
+    div.innerHTML = `<select class="inp" aria-label="Flavour">${cfg.flavours.map(f => `<option value="${esc(f.id)}" ${f.id === l.flavour ? "selected" : ""}>${esc(f.name)} — ${money(f.price)}</option>`).join("")}</select>
+      <input class="inp" type="number" min="1" step="1" value="${l.qty}" aria-label="Quantity">
+      <span class="price"></span><button type="button" class="iconbtn" aria-label="Remove">−</button>`;
+    div.querySelector("button").onclick = () => { if ($("#lines").children.length > 1) { div.remove(); updateSheet(); } };
+    div.querySelectorAll("select,input").forEach(e => e.oninput = updateSheet);
+    $("#lines").appendChild(div);
+  }
+  function readLines() { return [...$("#lines").children].map(d => ({ flavour: d.querySelector("select").value, qty: Math.max(1, parseInt(d.querySelector("input").value) || 1) })); }
+  function setSeg(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
+  function updateSheet() {
+    const lines = readLines();
+    [...$("#lines").children].forEach((d, i) => d.querySelector(".price").textContent = money(lines[i].qty * flav(lines[i].flavour).price));
+    const fee = sheetMode === "delivery" ? Number($("#oFee").value) || 0 : 0;
+    const tot = lines.reduce((a, l) => a + l.qty * flav(l.flavour).price, 0) + fee, k = costOf(usage({ lines }));
+    $("#oTotal").textContent = money(tot);
+    $("#oCost").textContent = `Ingredients ${money(k.c)}${k.missing.length ? " + " + k.missing.join(", ") : ""} · profit ${money(tot - k.c)}`;
+    const date = $("#oDate").value, bake = $("#oBake").value || defaultBake(date), w = $("#capWarn");
+    const add = lines.reduce((a, l) => a + l.qty, 0);
+    if (date && sheetStat !== "cancelled") {
+      const bl = blockOf(bake), cap = capOf(bake), n = capLoad(capKey(bake), editing?.id) + add, nd = bakeDayLoad(bake, editing?.id) + add;
+      const msgs = [];
+      if (bake > date) msgs.push(`The bake date is after the ${sheetMode} date.`);
+      if (n > cap) msgs.push(`This makes ${n} boules for the ${bl ? blockName(bl) : nice(bake)}, over your limit of ${cap}. Save anyway if you can stretch.`);
+      else if (nd > cfg.capacity) msgs.push(`That's ${nd} boules baked on ${nice(bake)}, more than ${cfg.capacity} in one bake day.${bl && bl.bakeDays > 1 ? " Move some to the other bake day this " + (bl.days > 2 ? "long weekend" : "weekend") + "." : ""}`);
+      if (!bl && !msgs.length) msgs.push(`Heads up: ${nice(bake)} is a workday bake, with prep the day before.`);
+      w.hidden = !msgs.length; w.textContent = msgs.join(" ");
+    } else w.hidden = true;
+    const pb = $("#planBox");
+    if (date && bake && sheetStat !== "cancelled") {
+      const counts = bouleCountByDate(editing?.id, { date: bake, n: add });
+      const n = counts[bake], p = bakePlan(n), s = sch(), prev = ymd(addDays(parse(bake), -1));
+      const map = scheduleMap(counts), clash = (map[bake] || []).some(b => b.clash) || (map[prev] || []).some(b => b.clash);
+      const t = $("#oTime").value, late = t && bake === date && hm(t) < p.ready;
+      pb.hidden = false;
+      pb.innerHTML = `<b>${nice(prev)}</b> blocked: ${s.feedStart}–${s.feedEnd} feed starter, ${s.mixStart}–${s.mixEnd} mix &amp; ferment.<br>
+        <b>${nice(bake)}</b> bake: oven on ${fmt(p.start)}, ${n} boule${n > 1 ? "s" : ""} done ${fmt(p.end)}, cooled by <b>${fmt(p.ready)}</b>.
+        ${bake !== date ? `<br><b>${nice(date)}</b> ${sheetMode}${t ? " at " + esc(t) : ""}.` : ""}
+        ${late ? `<div style="color:var(--bad);margin-top:4px">${sheetMode === "delivery" ? "Delivery" : "Pickup"} at ${esc(t)} is before the bread has cooled. Suggest ${fmt(p.ready)} or later.</div>` : ""}
+        ${clash ? `<div style="color:var(--bad);margin-top:4px">This bake overlaps mixing for the next day's bake. Move the oven-on time earlier or shift an order.</div>` : ""}`;
+    } else pb.hidden = true;
+  }
+  let sheetMode = "pickup";
+  function setMode(m) {
+    sheetMode = m === "delivery" ? "delivery" : "pickup";
+    setSeg("modeSeg", sheetMode);
+    $("#delRow").hidden = sheetMode !== "delivery";
+    $("#oDateLbl").textContent = sheetMode === "delivery" ? "Delivery date" : "Pickup date";
+    $("#oTimeLbl").textContent = sheetMode === "delivery" ? "Delivery time" : "Pickup time";
+    if (sheetMode === "delivery" && $("#oFee").value === "") $("#oFee").value = Number(cfg.deliveryFee) || 0;
+  }
+  function openOrder(o, date) {
+    editing = o || null;
+    $("#sheetTitle").textContent = o ? "Edit order" : "New order";
+    $("#oName").value = o?.name || ""; $("#oContact").value = o?.contact || "";
+    $("#oDate").value = o?.date || date || nextSaturday(); $("#oTime").value = o?.time || "";
+    $("#oBake").value = (o && bakeOf(o)) || defaultBake($("#oDate").value); bakeTouched = !!o?.bakeDate;
+    $("#oNotes").value = o?.notes || ""; $("#oMethod").value = o?.method || "PayNow";
+    $("#oAddr").value = o?.address || ""; $("#oFee").value = o?.mode === "delivery" ? (o.deliveryFee ?? "") : "";
+    setMode(o?.mode || "pickup");
+    sheetPay = o?.payment || "unpaid"; sheetStat = o?.status || "confirmed";
+    setSeg("paySeg", sheetPay); setSeg("statSeg", sheetStat);
+    $("#lines").innerHTML = ""; (o?.lines?.length ? o.lines : [{ flavour: "plain", qty: 1 }]).forEach(lineRow);
+    $("#delOrder").hidden = !o; $("#delOrder").textContent = "Delete"; $("#delOrder").dataset.armed = "";
+    $("#orderSheet").hidden = false; updateSheet(); setTimeout(() => $("#oName").focus(), 30);
+  }
+  function nextSaturday() { const d = new Date(); const add = (6 - d.getDay() + 7) % 7; return ymd(addDays(d, add)); }
+  function closeOrder() { $("#orderSheet").hidden = true; editing = null; }
+
+  async function adjustStock(delta, sign) { // delta: {item: g}; sign -1 deduct, +1 restore
+    for (const [k, g] of Object.entries(delta)) {
+      if (!inv[k]) continue;
+      const next = Math.round(((Number(inv[k].stock) || 0) + sign * g) * 10) / 10;
+      inv[k] = { ...inv[k], stock: next };
+      if (db) await db.doc("inventory/" + k).update({ stock: next });
+    }
+  }
+
+  async function saveOrder(e) {
+    e.preventDefault();
+    const btn = $("#saveOrder"); btn.disabled = true;
+    try {
+      const prev = editing;
+      const o = {
+        name: $("#oName").value.trim(), contact: $("#oContact").value.trim(), date: $("#oDate").value, time: $("#oTime").value,
+        bakeDate: $("#oBake").value || defaultBake($("#oDate").value),
+        lines: readLines(), payment: sheetPay, method: $("#oMethod").value, status: sheetStat, notes: $("#oNotes").value.trim(),
+        mode: sheetMode, address: sheetMode === "delivery" ? $("#oAddr").value.trim() : "", deliveryFee: sheetMode === "delivery" ? Number($("#oFee").value) || 0 : 0,
+        updatedAt: new Date().toISOString(), createdAt: prev?.createdAt || new Date().toISOString(), drawn: prev?.drawn || null
+      };
+      if (o.payment === "paid" && prev?.payment !== "paid") o.paidOn = todayS(); else if (prev?.paidOn) o.paidOn = prev.paidOn;
+      // stock draw-down when an order becomes baked/collected; restore if it goes back
+      const wasDrawn = !!prev?.drawn, nowDrawn = DRAWN.includes(o.status);
+      if (wasDrawn && !nowDrawn) { await adjustStock(prev.drawn, +1); o.drawn = null; }
+      if (!wasDrawn && nowDrawn) { o.drawn = usage(o); await adjustStock(o.drawn, -1); }
+      if (wasDrawn && nowDrawn && JSON.stringify(prev.lines) !== JSON.stringify(o.lines)) { await adjustStock(prev.drawn, +1); o.drawn = usage(o); await adjustStock(o.drawn, -1); }
+      const id = prev?.id || ("o" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+      if (db) await db.doc("orders/" + id).set(o);
+      else { orders = orders.filter(x => x.id !== id).concat([{ ...o, id }]); }
+      toast(!wasDrawn && nowDrawn ? "Saved. Ingredients taken from stock" : wasDrawn && !nowDrawn ? "Saved. Ingredients put back in stock" : "Order saved");
+      closeOrder(); renderAll();
+    } catch (err) { toast("Couldn't save the order. Check your connection and try again."); console.error(err); }
+    finally { btn.disabled = false; }
+  }
+  async function deleteOrder() {
+    const b = $("#delOrder");
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Tap again to delete"; return; }
+    const o = editing; if (!o) return;
+    try {
+      if (o.drawn) await adjustStock(o.drawn, +1);
+      if (db) await db.doc("orders/" + o.id).delete(); else orders = orders.filter(x => x.id !== o.id);
+      toast(o.drawn ? "Order deleted. Ingredients put back" : "Order deleted"); closeOrder(); renderAll();
+    } catch (err) { toast("Couldn't delete. Try again."); }
+  }
+
+  // ---- pantry sheet ----
+  let editingItem = null;
+  function openItem(it) {
+    editingItem = it || null;
+    $("#itemTitle").textContent = it ? it.name : "Add ingredient";
+    $("#iName").value = it?.name || ""; $("#iBrand").value = it?.brand || "";
+    $("#iStock").value = it ? Math.round(it.stock) : ""; $("#iPack").value = it?.packSize || ""; $("#iReorder").value = it?.reorderAt || "";
+    $("#iPrice").value = it?.price || ""; $("#iSupplier").value = it?.supplier || ""; $("#iUrl").value = it?.url || "";
+    $("#delItem").hidden = !it; $("#delItem").textContent = "Remove"; $("#delItem").dataset.armed = "";
+    $("#itemSheet").hidden = false;
+  }
+  async function saveItem(e) {
+    e.preventDefault();
+    const name = $("#iName").value.trim();
+    const id = editingItem?.id || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || ("item" + Date.now());
+    const keep = {}; ["sku", "salePrice", "priceChecked", "lastTopUp"].forEach(k => { if (editingItem?.[k] != null) keep[k] = editingItem[k]; });
+    const price = Number($("#iPrice").value) || 0;
+    if (editingItem && Number(editingItem.price) !== price) { keep.priceChecked = todayS(); delete keep.salePrice; }
+    const url = $("#iUrl").value.trim();
+    const it = { ...keep, name, brand: $("#iBrand").value.trim(), stock: Number($("#iStock").value) || 0, packSize: Number($("#iPack").value) || 0, reorderAt: Number($("#iReorder").value) || 0, price, supplier: $("#iSupplier").value.trim(), url: /^https:\/\//.test(url) ? url : "", order: editingItem?.order ?? 50, unit: "g" };
+    try { if (db) await db.doc("inventory/" + id).set(it); else inv[id] = { ...it, id }; $("#itemSheet").hidden = true; toast("Pantry updated"); renderAll(); }
+    catch { toast("Couldn't save. Try again."); }
+  }
+  async function deleteItem() {
+    const b = $("#delItem");
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Tap again to remove"; return; }
+    try { if (db) await db.doc("inventory/" + editingItem.id).delete(); else delete inv[editingItem.id]; $("#itemSheet").hidden = true; renderAll(); }
+    catch { toast("Couldn't remove. Try again."); }
+  }
+  async function topUp(id) {
+    const it = inv[id]; if (!it) return;
+    const next = (Number(it.stock) || 0) + (Number(it.packSize) || 0);
+    try { if (db) await db.doc("inventory/" + id).update({ stock: next, lastTopUp: todayS() }); else inv[id] = { ...it, stock: next }; toast(`${it.name}: now ${grams(next)}`); renderAll(); }
+    catch { toast("Couldn't update stock. Try again."); }
+  }
+
+  async function saveRecipe() {
+    const next = JSON.parse(JSON.stringify(cfg));
+    next.capacity = Math.max(1, parseInt($("#capIn").value) || 2);
+    next.daysOff = pendingOff.map(x => ({ ...x }));
+    next.deliveryFee = Math.max(0, Number($("#feeIn").value) || 0);
+    document.querySelectorAll("[data-base]").forEach(i => next.base[+i.dataset.base].g = Number(i.value) || 0);
+    document.querySelectorAll("[data-price]").forEach(i => next.flavours[+i.dataset.price].price = Number(i.value) || 0);
+    document.querySelectorAll("[data-inc]").forEach(i => { const [f, r] = i.dataset.inc.split(":"); next.inclusions[f][+r].g = Number(i.value) || 0; });
+    next.schedule = { ...sch() };
+    document.querySelectorAll("[data-sch]").forEach(i => { if (i.value) next.schedule[i.dataset.sch] = i.value; });
+    document.querySelectorAll("[data-schn]").forEach(i => next.schedule[i.dataset.schn] = Math.max(0, Number(i.value) || 0));
+    try { if (db) await db.doc("config/main").set(next); cfg = next; toast("Recipe & prices saved"); renderAll(); }
+    catch { toast("Couldn't save. Try again."); }
+  }
+
+  let tt; function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2600); }
+
+  // ---- wiring ----
+  document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("nav.tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+    ["calendar", "orders", "pantry", "recipe"].forEach(v => $("#v-" + v).hidden = v !== b.dataset.tab);
+    $("#v-plan").hidden = b.dataset.tab !== "calendar";
+    if (b.dataset.tab === "recipe") renderRecipe();
+    try { localStorage.setItem("bb-tab", b.dataset.tab); } catch {}
+  });
+  $("#newOrderBtn").onclick = () => openOrder(null);
+  $("#prevM").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCal(); };
+  $("#nextM").onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCal(); };
+  $("#todayM").onclick = () => { viewMonth = startOfMonth(new Date()); renderCal(); };
+  $("#cal").addEventListener("click", e => {
+    const chip = e.target.closest("[data-order]"); if (chip) { openOrder(orders.find(o => o.id === chip.dataset.order)); return; }
+    const day = e.target.closest("[data-date]"); if (day) openOrder(null, day.dataset.date);
+  });
+  $("#cal").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".day")) { e.preventDefault(); openOrder(null, e.target.dataset.date); } });
+  $("#orderRows").addEventListener("click", e => { const r = e.target.closest("[data-order]"); if (r) openOrder(orders.find(o => o.id === r.dataset.order)); });
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-topup]"); if (t) topUp(t.dataset.topup);
+    const ed = e.target.closest("[data-edititem]"); if (ed) openItem(pantryState().find(p => p.id === ed.dataset.edititem));
+  });
+  $("#fWhen").onchange = renderOrders; $("#fPay").onchange = renderOrders;
+  $("#addLine").onclick = () => { lineRow({ flavour: "plain", qty: 1 }); updateSheet(); };
+  let bakeTouched = false;
+  $("#oDate").oninput = () => { if (!bakeTouched) $("#oBake").value = defaultBake($("#oDate").value); updateSheet(); };
+  $("#oBake").oninput = () => { bakeTouched = true; updateSheet(); };
+  $("#oTime").oninput = updateSheet; $("#oFee").oninput = updateSheet;
+  $("#modeSeg").onclick = e => { const b = e.target.closest("button"); if (b) { setMode(b.dataset.v); updateSheet(); } };
+  $("#paySeg").onclick = e => { const b = e.target.closest("button"); if (b) { sheetPay = b.dataset.v; setSeg("paySeg", sheetPay); } };
+  $("#statSeg").onclick = e => { const b = e.target.closest("button"); if (b) { sheetStat = b.dataset.v; setSeg("statSeg", sheetStat); updateSheet(); } };
+  $("#orderForm").onsubmit = saveOrder; $("#delOrder").onclick = deleteOrder;
+  $("#closeSheet").onclick = closeOrder; $("#cancelSheet").onclick = closeOrder;
+  $("#orderSheet").addEventListener("click", e => { if (e.target.id === "orderSheet") closeOrder(); });
+  $("#addItemBtn").onclick = () => openItem(null);
+  $("#itemForm").onsubmit = saveItem; $("#delItem").onclick = deleteItem;
+  $("#closeItem").onclick = () => $("#itemSheet").hidden = true; $("#cancelItem").onclick = () => $("#itemSheet").hidden = true;
+  $("#saveRecipe").onclick = saveRecipe;
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeOrder(); $("#itemSheet").hidden = true; } });
+  try { const t = localStorage.getItem("bb-tab"); if (t) document.querySelector(`nav.tabs button[data-tab="${t}"]`)?.click(); } catch {}
+
+  renderAll();
+
+  // ---- data (Supabase) ----
+  function makeDb(sb, uid) {
+    const LS = "bb-cache-";
+    const cache = {}, listeners = [];
+    const read = (col) => { try { const raw = localStorage.getItem(LS + col); return raw ? new Map(Object.entries(JSON.parse(raw))) : null; } catch { return null; } };
+    const persist = (col) => { try { localStorage.setItem(LS + col, JSON.stringify(Object.fromEntries(cache[col] || new Map()))); } catch {} };
+    const emit = (col, fromCache) => { for (const l of listeners) if (l.col === col) l.fire(!!fromCache); };
+    async function load(col) {
+      const { data, error } = await sb.from("docs").select("id,data").eq("collection", col);
+      if (error) throw error;
+      cache[col] = new Map(data.map(r => [r.id, r.data])); persist(col); emit(col, false);
+    }
+    const colSnap = (col, fc) => { const docs = [...(cache[col] || new Map())].map(([id, d]) => ({ id, exists: true, data: () => d })); return { docs, size: docs.length, empty: !docs.length, metadata: { fromCache: fc, hasPendingWrites: false } }; };
+    const docSnap = (col, id, fc) => { const d = cache[col]?.get(id); return { id, exists: !!d, data: () => d, metadata: { fromCache: fc, hasPendingWrites: false } }; };
+    function subscribe(col, id, next, err) {
+      const l = { col, fire: (fc) => next(id ? docSnap(col, id, fc) : colSnap(col, fc)) };
+      listeners.push(l);
+      if (!cache[col]) { const c = read(col); if (c) { cache[col] = c; l.fire(true); } }
+      load(col).catch(e => err && err({ code: navigator.onLine ? "unavailable" : "offline", message: e.message }));
+      return () => listeners.splice(listeners.indexOf(l), 1);
+    }
+    async function write(col, id, data) {
+      (cache[col] = cache[col] || new Map()).set(id, data); persist(col); emit(col, false);
+      const { error } = await sb.from("docs").upsert({ owner: uid, collection: col, id, data, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    }
+    const clone = (d) => JSON.parse(JSON.stringify(d));
+    const doc = (path) => {
+      const [col, id] = path.split("/");
+      return {
+        id, path,
+        onSnapshot: (n, e) => subscribe(col, id, n, e),
+        set: (d) => write(col, id, clone(d)),
+        update: (d) => write(col, id, { ...(cache[col]?.get(id) || {}), ...clone(d) }),
+        delete: async () => {
+          cache[col]?.delete(id); persist(col); emit(col, false);
+          const { error } = await sb.from("docs").delete().match({ owner: uid, collection: col, id });
+          if (error) throw error;
+        }
+      };
+    };
+    const collection = (col) => ({ onSnapshot: (n, e) => subscribe(col, null, n, e), doc: (id) => doc(col + "/" + id) });
+    // live changes from your other device
+    sb.channel("docs-" + uid).on("postgres_changes", { event: "*", schema: "public", table: "docs" }, (p) => {
+      const row = p.eventType === "DELETE" ? p.old : p.new;
+      if (!row || row.owner !== uid || !row.collection) return;
+      const m = cache[row.collection] = cache[row.collection] || new Map();
+      if (p.eventType === "DELETE") m.delete(row.id); else m.set(row.id, row.data);
+      persist(row.collection); emit(row.collection, false);
+    }).subscribe();
+    // phones pause apps in the background: refresh when you come back
+    const refreshAll = () => Object.keys(cache).forEach(c => load(c).catch(() => {}));
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshAll(); });
+    window.addEventListener("online", refreshAll);
+    async function exportAll() {
+      for (const c of ["orders", "inventory", "config"]) await load(c);
+      const out = { app: "bake-book", exported: todayS(), collections: {} };
+      for (const c of ["orders", "inventory", "config"]) out.collections[c] = Object.fromEntries(cache[c] || new Map());
+      return out;
+    }
+    return { doc, collection, exportAll, write };
+  }
+
+  let sb = null;
+  async function startData() {
+    const off = $("#offline"), conf = window.BAKE_BOOK_CONFIG || {};
+    if (!window.supabase || !conf.supabaseUrl || /YOUR-PROJECT|PASTE/.test(conf.supabaseUrl + conf.supabaseKey)) {
+      off.hidden = false; off.textContent = "Not connected yet. Add your Supabase address and key to config.js (see README step 2).";
+      loaded.o = loaded.i = true; renderAll(); return;
+    }
+    sb = window.supabase.createClient(conf.supabaseUrl, conf.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { $("#loginSheet").hidden = false; return; }
+    begin(session.user);
+  }
+  function begin(user) {
+    $("#loginSheet").hidden = true;
+    $("#acctEmail").textContent = user.email || "";
+    db = makeDb(sb, user.id);
+    const off = $("#offline");
+    const timer = setTimeout(() => { off.hidden = false; off.textContent = "Still reaching your saved orders… what you see may be out of date."; }, 10000);
+    const clear = (snap) => { if (!snap.metadata.fromCache) { clearTimeout(timer); off.hidden = true; } };
+    const fail = (e) => { clearTimeout(timer); off.hidden = false; off.textContent = e.code === "offline" ? "You're offline. Showing what was saved on this device; changes need internet." : "Couldn't load your saved data. Check your connection and reopen the app."; };
+    db.collection("orders").onSnapshot(s => { orders = s.docs.map(d => ({ id: d.id, ...d.data() })); loaded.o = true; clear(s); renderAll(); }, fail);
+    db.collection("inventory").onSnapshot(s => { inv = {}; s.docs.forEach(d => inv[d.id] = { id: d.id, ...d.data() }); loaded.i = true; clear(s); renderAll(); }, fail);
+    db.doc("config/main").onSnapshot(s => { if (s.exists) { const d = JSON.parse(JSON.stringify(s.data())); cfg = { ...JSON.parse(JSON.stringify(DEFAULT_CONFIG)), ...d, schedule: { ...DEFAULT_CONFIG.schedule, ...(d.schedule || {}) } }; renderAll(); if (!$("#v-recipe").hidden) renderRecipe(); } }, fail);
+  }
+
+  $("#loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = $("#loginBtn"), msg = $("#loginMsg"); btn.disabled = true; msg.hidden = true;
+    const { data, error } = await sb.auth.signInWithPassword({ email: $("#lEmail").value.trim(), password: $("#lPass").value });
+    btn.disabled = false;
+    if (error) { msg.hidden = false; msg.textContent = "That email and password didn't match. Use the account you created in Supabase (README step 3)."; return; }
+    begin(data.user);
+  };
+  $("#signOut").onclick = async () => { if (!sb) return; await sb.auth.signOut(); try { Object.keys(localStorage).filter(k => k.startsWith("bb-cache-")).forEach(k => localStorage.removeItem(k)); } catch {} location.reload(); };
+  $("#exportBtn").onclick = async () => {
+    if (!db) return;
+    try {
+      const data = await db.exportAll();
+      const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "bake-book-backup-" + todayS() + ".json";
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast("Backup saved");
+    } catch { toast("Couldn't make the backup. Check your connection."); }
+  };
+  let pendingImport = null;
+  $("#importFile").onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (!j.collections) throw new Error();
+      pendingImport = j;
+      const n = (c) => Object.keys(j.collections[c] || {}).length;
+      $("#importMsg").hidden = false;
+      $("#importMsg").innerHTML = `This backup has <b>${n("orders")}</b> orders and <b>${n("inventory")}</b> pantry items. Items with the same name are replaced. <button class="btn small primary" type="button" id="importGo">Import now</button>`;
+      $("#importGo").onclick = runImport;
+    } catch { toast("That file isn't a Bake Book backup."); }
+    e.target.value = "";
+  };
+  async function runImport() {
+    if (!db || !pendingImport) return;
+    $("#importGo").disabled = true;
+    try {
+      for (const [c, docs] of Object.entries(pendingImport.collections)) for (const [id, d] of Object.entries(docs)) await db.write(c, id, d);
+      $("#importMsg").hidden = true; pendingImport = null; toast("Backup imported");
+    } catch { toast("Import stopped partway. Check your connection and import again."); $("#importGo").disabled = false; }
+  }
+
+  startData();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
